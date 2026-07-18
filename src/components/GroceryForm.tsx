@@ -25,12 +25,16 @@ interface GroceryFormProps {
     purchaseType: string;
     items: GroceryItem[];
   } | null;
+  mode?: 'now' | 'future';
   onBack: () => void;
 }
 
-export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
+export default function GroceryForm({ editingList, mode = 'now', onBack }: GroceryFormProps) {
+  const isFuture = mode === 'future';
   const addGroceryList = useGastosStore((s) => s.addGroceryList);
   const updateGroceryList = useGastosStore((s) => s.updateGroceryList);
+  const addFutureGroceryList = useGastosStore((s) => s.addFutureGroceryList);
+  const updateFutureGroceryList = useGastosStore((s) => s.updateFutureGroceryList);
   const addMasterItems = useGastosStore((s) => s.addMasterItems);
   const groceryItemsMaster = useGastosStore((s) => s.groceryItemsMaster);
   const groceryDraft = useGastosStore((s) => s.groceryDraft);
@@ -40,13 +44,13 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
   // Load from draft if not editing and draft exists
   const getInitialItems = (): GroceryItem[] => {
     if (editingList?.items?.length) return editingList.items;
-    if (!editingList && groceryDraft?.items?.length) return groceryDraft.items;
+    if (!editingList && !isFuture && groceryDraft?.items?.length) return groceryDraft.items;
     return [{ id: uuidv4(), name: '', unitPrice: 0, quantity: 1 }];
   };
 
   const getInitialName = (): string => {
     if (editingList?.name) return editingList.name;
-    if (!editingList && groceryDraft?.listName) return groceryDraft.listName;
+    if (!editingList && !isFuture && groceryDraft?.listName) return groceryDraft.listName;
     return '';
   };
 
@@ -64,7 +68,7 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
 
   // Save draft whenever items or listName change (only for new lists, not editing)
   useEffect(() => {
-    if (editingList) return; // Don't save draft when editing existing list
+    if (editingList || isFuture) return; // Don't save draft when editing or planning future purchase
     // Only save if there's meaningful content
     const hasContent = listName.trim() || items.some(i => i.name.trim() || i.unitPrice > 0);
     if (hasContent) {
@@ -74,7 +78,7 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
         updatedAt: new Date().toISOString(),
       });
     }
-  }, [items, listName, editingList, saveGroceryDraft]);
+  }, [items, listName, editingList, isFuture, saveGroceryDraft]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -146,13 +150,36 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
 
     try {
       if (editingList) {
-        await updateGroceryList(editingList.id, {
+        if (isFuture) {
+          await updateFutureGroceryList(editingList.id, {
+            name,
+            purchaseType: resolvedType,
+            items,
+            total,
+          });
+          toast.success('Compra futura atualizada com sucesso!');
+        } else {
+          await updateGroceryList(editingList.id, {
+            name,
+            purchaseType: resolvedType,
+            items,
+            total,
+          });
+          toast.success('Compra atualizada com sucesso!');
+        }
+      } else if (isFuture) {
+        await addFutureGroceryList({
+          date: new Date().toISOString(),
           name,
           purchaseType: resolvedType,
           items,
           total,
         });
-        toast.success('Compra atualizada com sucesso!');
+        const newNames = items
+          .map((item) => item.name.trim())
+          .filter((n) => n.length > 0);
+        await addMasterItems(newNames);
+        toast.success('Compra futura salva com sucesso!');
       } else {
         await addGroceryList({
           date: new Date().toISOString(),
@@ -177,7 +204,7 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
 
   const handleBack = async () => {
     // If not editing and has content, save as draft before going back
-    if (!editingList) {
+    if (!editingList && !isFuture) {
       const hasContent = listName.trim() || items.some(i => i.name.trim() || i.unitPrice > 0);
       if (hasContent) {
         await saveGroceryDraft({
@@ -208,12 +235,14 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h2 className="text-lg font-bold text-foreground tracking-tight">
-          {editingList ? 'Editar Compra' : 'Nova Compra'}
+          {editingList
+            ? isFuture ? 'Editar Compra Futura' : 'Editar Compra'
+            : isFuture ? 'Nova Compra Futura' : 'Nova Compra'}
         </h2>
       </div>
 
       {/* Draft indicator */}
-      {!editingList && groceryDraft && (
+      {!editingList && !isFuture && groceryDraft && (
         <div className="flex items-center gap-2 p-2.5 rounded-xl bg-primary/5 border border-primary/10 animate-fade-in">
           <Save className="h-3.5 w-3.5 text-primary shrink-0" />
           <p className="text-[11px] text-primary font-medium">
@@ -398,7 +427,9 @@ export default function GroceryForm({ editingList, onBack }: GroceryFormProps) {
             className="w-full h-12 btn-primary text-base"
           >
             <ShoppingCart className="h-5 w-5 mr-2" />
-            {editingList ? 'Salvar Alterações' : 'Finalizar Compra'}
+            {editingList
+              ? 'Salvar Alterações'
+              : isFuture ? 'Salvar Compra Futura' : 'Finalizar Compra'}
           </Button>
         </div>
       </div>

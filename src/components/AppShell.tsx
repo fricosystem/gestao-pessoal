@@ -26,7 +26,7 @@ const TABS: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'salary', label: 'Salário', icon: Wallet },
   { id: 'debts', label: 'Dívidas', icon: CreditCard },
   { id: 'grocery', label: 'Compras', icon: ShoppingCart },
-  { id: 'cadastros', label: 'Cadastros', icon: UserCog },
+  { id: 'cadastros', label: 'Perfil', icon: UserCog },
 ];
 
 export default function AppShell() {

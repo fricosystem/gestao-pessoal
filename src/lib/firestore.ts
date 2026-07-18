@@ -12,7 +12,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { MonthlySalary, Extra, Debt, DebtPayment, GroceryList, GroceryItem } from './types';
+import type { MonthlySalary, Extra, Debt, DebtPayment, GroceryList, GroceryItem, FutureGroceryList } from './types';
 
 // ─── Helper: convert Firestore timestamps to ISO strings ───
 function toISO(val: unknown): string {
@@ -194,6 +194,62 @@ export async function updateGroceryListFirestore(
 
 export async function deleteGroceryListFirestore(listId: string): Promise<void> {
   await deleteDoc(doc(db, LISTAS_COL, listId));
+}
+
+// ─── Compras Futuras (planejadas) ───
+const COMPRAS_FUTURAS_COL = 'compras_futuras';
+
+export async function addFutureGroceryListFirestore(
+  userId: string,
+  list: Omit<FutureGroceryList, 'id'>
+): Promise<string> {
+  const docRef = await addDoc(collection(db, COMPRAS_FUTURAS_COL), {
+    userId,
+    date: list.date,
+    name: list.name,
+    purchaseType: list.purchaseType,
+    items: list.items,
+    total: list.total,
+  });
+  return docRef.id;
+}
+
+export async function updateFutureGroceryListFirestore(
+  listId: string,
+  updates: Partial<FutureGroceryList>
+): Promise<void> {
+  const docRef = doc(db, COMPRAS_FUTURAS_COL, listId);
+  await updateDoc(docRef, updates as Record<string, unknown>);
+}
+
+export async function deleteFutureGroceryListFirestore(listId: string): Promise<void> {
+  await deleteDoc(doc(db, COMPRAS_FUTURAS_COL, listId));
+}
+
+export function subscribeComprasFuturas(userId: string, callback: (data: FutureGroceryList[]) => void) {
+  const q = query(collection(db, COMPRAS_FUTURAS_COL), where('userId', '==', userId));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map((d) => {
+      const docData = d.data();
+      return {
+        id: d.id,
+        date: toISO(docData.date),
+        name: docData.name,
+        purchaseType: docData.purchaseType || 'Supermercado',
+        items: (docData.items || []).map((i: Record<string, unknown>) => ({
+          id: i.id as string,
+          name: i.name as string,
+          unitPrice: i.unitPrice as number,
+          quantity: i.quantity as number,
+        })),
+        total: docData.total || 0,
+      } as FutureGroceryList;
+    });
+    callback(data);
+  }, (error) => {
+    console.warn('[Firestore] Erro ao escutar compras futuras:', error?.message || error);
+    callback([]);
+  });
 }
 
 // ─── Itens Mestre do Mercado (autocomplete) ───
