@@ -9,6 +9,7 @@ import {
   subscribeListas,
   subscribeMasterItems,
   subscribeDraft,
+  subscribeComprasFuturas,
 } from '@/lib/firestore';
 
 export function useFirestoreSync() {
@@ -17,6 +18,7 @@ export function useFirestoreSync() {
   const setMonthlySalaries = useGastosStore((s) => s.setMonthlySalaries);
   const setDebts = useGastosStore((s) => s.setDebts);
   const setGroceryLists = useGastosStore((s) => s.setGroceryLists);
+  const setFutureGroceryLists = useGastosStore((s) => s.setFutureGroceryLists);
   const setGroceryItemsMaster = useGastosStore((s) => s.setGroceryItemsMaster);
   const setGroceryDraft = useGastosStore((s) => s.setGroceryDraft);
 
@@ -26,6 +28,7 @@ export function useFirestoreSync() {
       setMonthlySalaries([]);
       setDebts([]);
       setGroceryLists([]);
+      setFutureGroceryLists([]);
       setGroceryItemsMaster([]);
       setGroceryDraft(null);
       return;
@@ -42,6 +45,7 @@ export function useFirestoreSync() {
     const unsub5 = subscribeDraft(uid, (draft) => {
       setGroceryDraft(draft ? { listName: draft.listName, items: draft.items, updatedAt: draft.updatedAt } : null);
     });
+    const unsub6 = subscribeComprasFuturas(uid, setFutureGroceryLists);
 
     return () => {
       unsub1();
@@ -49,6 +53,7 @@ export function useFirestoreSync() {
       unsub3();
       unsub4();
       unsub5();
+      unsub6();
     };
-  }, [user, setUserId, setMonthlySalaries, setDebts, setGroceryLists, setGroceryItemsMaster, setGroceryDraft]);
+  }, [user, setUserId, setMonthlySalaries, setDebts, setGroceryLists, setFutureGroceryLists, setGroceryItemsMaster, setGroceryDraft]);
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import type { MonthlySalary, Extra, Debt, DebtPayment, GroceryList, GroceryItem } from './types';
+import type { MonthlySalary, Extra, Debt, DebtPayment, GroceryList, GroceryItem, FutureGroceryList } from './types';
 import {
   saveSalaryFirestore,
   addExtraFirestore,
@@ -15,6 +15,9 @@ import {
   addMasterItemsFirestore,
   saveGroceryDraftFirestore,
   clearGroceryDraftFirestore,
+  addFutureGroceryListFirestore,
+  updateFutureGroceryListFirestore,
+  deleteFutureGroceryListFirestore,
 } from './firestore';
 import type { GroceryDraftFirestore } from './firestore';
 
@@ -29,6 +32,7 @@ interface GastosState {
   monthlySalaries: MonthlySalary[];
   debts: Debt[];
   groceryLists: GroceryList[];
+  futureGroceryLists: FutureGroceryList[];
   groceryItemsMaster: string[];
   groceryDraft: GroceryDraft | null;
 
@@ -37,6 +41,7 @@ interface GastosState {
   setMonthlySalaries: (salaries: MonthlySalary[]) => void;
   setDebts: (debts: Debt[]) => void;
   setGroceryLists: (lists: GroceryList[]) => void;
+  setFutureGroceryLists: (lists: FutureGroceryList[]) => void;
   setGroceryItemsMaster: (items: string[]) => void;
   setGroceryDraft: (draft: GroceryDraft | null) => void;
 
@@ -57,6 +62,12 @@ interface GastosState {
   deleteGroceryList: (listId: string) => Promise<void>;
   addMasterItems: (names: string[]) => Promise<void>;
 
+  // Compras Futuras
+  addFutureGroceryList: (list: Omit<FutureGroceryList, 'id'>) => Promise<void>;
+  updateFutureGroceryList: (listId: string, updates: Partial<FutureGroceryList>) => Promise<void>;
+  deleteFutureGroceryList: (listId: string) => Promise<void>;
+  buyFutureGroceryList: (list: FutureGroceryList) => Promise<void>;
+
   // Grocery Draft
   saveGroceryDraft: (draft: GroceryDraft) => Promise<void>;
   clearGroceryDraft: () => Promise<void>;
@@ -67,6 +78,7 @@ export const useGastosStore = create<GastosState>()((set, get) => ({
   monthlySalaries: [],
   debts: [],
   groceryLists: [],
+  futureGroceryLists: [],
   groceryItemsMaster: [],
   groceryDraft: null,
 
@@ -75,6 +87,7 @@ export const useGastosStore = create<GastosState>()((set, get) => ({
   setMonthlySalaries: (monthlySalaries) => set({ monthlySalaries }),
   setDebts: (debts) => set({ debts }),
   setGroceryLists: (groceryLists) => set({ groceryLists }),
+  setFutureGroceryLists: (futureGroceryLists) => set({ futureGroceryLists }),
   setGroceryItemsMaster: (groceryItemsMaster) => set({ groceryItemsMaster }),
   setGroceryDraft: (groceryDraft) => set({ groceryDraft }),
 
@@ -136,6 +149,37 @@ export const useGastosStore = create<GastosState>()((set, get) => ({
     const userId = get().userId;
     if (!userId) return;
     await addMasterItemsFirestore(userId, names);
+  },
+
+  // Compras Futuras
+  addFutureGroceryList: async (list) => {
+    const userId = get().userId;
+    if (!userId) return;
+    await addFutureGroceryListFirestore(userId, list);
+  },
+
+  updateFutureGroceryList: async (listId, updates) => {
+    await updateFutureGroceryListFirestore(listId, updates);
+  },
+
+  deleteFutureGroceryList: async (listId) => {
+    await deleteFutureGroceryListFirestore(listId);
+  },
+
+  // Compra agora: converte a compra futura em gasto real e remove da lista de futuras
+  buyFutureGroceryList: async (list) => {
+    const userId = get().userId;
+    if (!userId) return;
+    await addGroceryListFirestore(userId, {
+      date: new Date().toISOString(),
+      name: list.name,
+      purchaseType: list.purchaseType,
+      items: list.items,
+      total: list.total,
+    });
+    const names = list.items.map((i) => i.name.trim()).filter((n) => n.length > 0);
+    await addMasterItemsFirestore(userId, names);
+    await deleteFutureGroceryListFirestore(list.id);
   },
 
   // Grocery Draft

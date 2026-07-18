@@ -45,6 +45,16 @@ export interface GroceryList {
   total: number;
 }
 
+// Compra futura (planejada) — só vira gasto quando comprada
+export interface FutureGroceryList {
+  id: string;
+  date: string; // ISO date - data de cadastro/planejamento
+  name: string;
+  purchaseType: string;
+  items: GroceryItem[];
+  total: number;
+}
+
 // Tipos de compra fixos (mais opção "Outros" editável)
 export const PURCHASE_TYPES = [
   'Supermercado',
